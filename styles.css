@@ -1,0 +1,197 @@
+/* Amazon Review Analyzer Styles */
+
+#review-analyzer-panel {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 12px;
+  padding: 20px;
+  margin: 20px 0;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.ra-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding-bottom: 15px;
+}
+
+.ra-header h3 {
+  margin: 0;
+  font-size: 1.5em;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ra-status {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 6px 12px;
+  rounded: 20px;
+  border-radius: 20px;
+  font-size: 0.9em;
+  font-weight: 500;
+}
+
+.ra-content {
+  display: flex;
+  gap: 30px;
+  align-items: flex-start;
+}
+
+.ra-score-container {
+  text-align: center;
+  min-width: 120px;
+}
+
+.ra-score {
+  font-size: 3em;
+  font-weight: bold;
+  margin-bottom: 5px;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.ra-score-good {
+  color: #4CAF50;
+}
+
+.ra-score-medium {
+  color: #FF9800;
+}
+
+.ra-score-bad {
+  color: #F44336;
+}
+
+.ra-score-label {
+  font-size: 0.9em;
+  opacity: 0.9;
+  font-weight: 500;
+}
+
+.ra-details {
+  flex: 1;
+}
+
+.ra-stat {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ra-stat:last-child {
+  border-bottom: none;
+}
+
+.ra-stat-label {
+  font-weight: 500;
+  opacity: 0.9;
+}
+
+.ra-stat-value {
+  font-weight: bold;
+  color: #fff;
+}
+
+.ra-warnings {
+  margin-top: 20px;
+  padding: 15px;
+  background: rgba(255, 107, 107, 0.2);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 107, 107, 0.3);
+}
+
+.ra-warnings h4 {
+  margin: 0 0 10px 0;
+  font-size: 1.1em;
+  color: #ffcccb;
+}
+
+.ra-warning {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 8px 12px;
+  margin: 5px 0;
+  border-radius: 6px;
+  font-size: 0.9em;
+}
+
+.ra-loading {
+  text-align: center;
+  padding: 20px;
+  font-size: 1.1em;
+  opacity: 0.8;
+}
+
+.ra-no-reviews {
+  text-align: center;
+  padding: 20px;
+  opacity: 0.8;
+  font-style: italic;
+}
+
+.ra-review-warning {
+  background: #ff6b6b;
+  color: white;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 0.8em;
+  font-weight: bold;
+  margin-bottom: 10px;
+  display: inline-block;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .ra-content {
+    flex-direction: column;
+    gap: 20px;
+  }
+  
+  .ra-score-container {
+    min-width: auto;
+  }
+  
+  #review-analyzer-panel {
+    padding: 15px;
+  }
+}
+
+/* Animation for score */
+@keyframes scoreAnimation {
+  0% {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.ra-score {
+  animation: scoreAnimation 0.8s ease-out;
+}
+
+/* Hover effects */
+#review-analyzer-panel:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+  transition: all 0.3s ease;
+}
+
+.ra-stat:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
