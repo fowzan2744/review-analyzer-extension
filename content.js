@@ -405,161 +405,104 @@ class AmazonReviewAnalyzer {
     `;
   }
 
-  scrapeReviews() {
-    const reviewElements = document.querySelectorAll('[data-hook="review"]');
-    
-    reviewElements.forEach(review => {
-      const rating = this.extractRating(review);
-      const text = this.extractReviewText(review);
-      const date = this.extractDate(review);
-      const reviewer = this.extractReviewer(review);
-      const verified = this.isVerifiedPurchase(review);
-
-      if (text && rating) {
-        this.reviews.push({
-          rating,
-          text,
-          date,
-          reviewer,
-          verified,
-          element: review
-        });
+  async scrapeReviews() {
+    try {
+      const statusElement = document.querySelector('.ra-status');
+      if (statusElement) {
+        statusElement.textContent = 'Collecting reviews (this may take a moment)...';
       }
-    });
 
-    console.log(`Scraped ${this.reviews.length} reviews`);
-  }
-
-  extractRating(reviewElement) {
-    const ratingElement = reviewElement.querySelector('[data-hook="review-star-rating"], .a-icon-alt');
-    if (ratingElement) {
-      const ratingText = ratingElement.textContent || ratingElement.getAttribute('alt') || '';
-      const match = ratingText.match(/(\d+\.?\d*)/);
-      return match ? parseFloat(match[1]) : null;
-    }
-    return null;
-  }
-
-  extractReviewText(reviewElement) {
-    const textElement = reviewElement.querySelector('[data-hook="review-body"] span, .cr-original-review-text');
-    return textElement ? textElement.textContent.trim() : '';
-  }
-
-  extractDate(reviewElement) {
-    const dateElement = reviewElement.querySelector('[data-hook="review-date"]');
-    if (dateElement) {
-      const dateText = dateElement.textContent;
-      const match = dateText.match(/on (.+)/);
-      return match ? new Date(match[1]) : null;
-    }
-    return null;
-  }
-
-  extractReviewer(reviewElement) {
-    const reviewerElement = reviewElement.querySelector('[data-hook="review-author"] .a-profile-name');
-    return reviewerElement ? reviewerElement.textContent.trim() : 'Anonymous';
-  }
-
- // Replace the existing isVerifiedPurchase method with this improved version
-
-isVerifiedPurchase(reviewElement) {
-  // Method 1: Look for the standard verified purchase badge
-  const verifiedBadge = reviewElement.querySelector('[data-hook="avp-badge"]');
-  if (verifiedBadge) return true;
-
-  // Method 2: Look for "Verified Purchase" text in various containers
-  const verifiedTextSelectors = [
-    '[data-hook="review-author"]',
-    '.a-profile',
-    '.cr-lighthouse-terms',
-    '.a-color-secondary',
-    '.a-size-mini'
-  ];
-
-  for (const selector of verifiedTextSelectors) {
-    const elements = reviewElement.querySelectorAll(selector);
-    for (const element of elements) {
-      const text = element.textContent || '';
-      if (text.includes('Verified Purchase') || text.includes('verified purchase')) {
-        return true;
+      // Get the reviews URL
+      let reviewsUrl = window.location.href;
+      const reviewsLink = document.querySelector('a[data-hook="see-all-reviews-link-foot"]');
+      
+      if (reviewsLink) {
+        reviewsUrl = reviewsLink.href;
+      } else {
+        // Try to construct the reviews URL if link not found
+        const productId = window.location.href.match(/\/dp\/([A-Z0-9]+)/)?.[1];
+        if (productId) {
+          reviewsUrl = `${window.location.origin}/product-reviews/${productId}`;
+        }
       }
-    }
-  }
 
-  // Method 3: Look for specific verified purchase classes
-  const verifiedClasses = [
-    '.cr-verified-purchase',
-    '.a-color-secondary.verified-purchase',
-    '.a-size-mini.verified-purchase'
-  ];
-
-  for (const className of verifiedClasses) {
-    if (reviewElement.querySelector(className)) {
-      return true;
-    }
-  }
-
-  // Method 4: Check for orange/specific colored verified purchase text
-  const coloredElements = reviewElement.querySelectorAll('.a-color-secondary, .a-color-base');
-  for (const element of coloredElements) {
-    const text = element.textContent || '';
-    if (text.includes('Verified Purchase')) {
-      return true;
-    }
-  }
-
-  // Method 5: Look in review metadata section
-  const reviewMeta = reviewElement.querySelector('[data-hook="review-author"], .a-profile-content');
-  if (reviewMeta) {
-    const metaText = reviewMeta.textContent || '';
-    if (metaText.includes('Verified Purchase')) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-// Also update the scrapeReviews method to add better debugging
-scrapeReviews() {
-  const reviewElements = document.querySelectorAll('[data-hook="review"]');
-  
-  console.log(`Found ${reviewElements.length} review elements`);
-  
-  reviewElements.forEach((review, index) => {
-    const rating = this.extractRating(review);
-    const text = this.extractReviewText(review);
-    const date = this.extractDate(review);
-    const reviewer = this.extractReviewer(review);
-    const verified = this.isVerifiedPurchase(review);
-
-    // Debug logging for verification detection
-    if (index < 5) { // Log first 5 reviews for debugging
-      console.log(`Review ${index + 1}:`, {
-        reviewer,
-        verified,
-        verifiedText: review.textContent.includes('Verified Purchase') ? 'Text contains "Verified Purchase"' : 'No verified text found'
+      console.log('Fetching reviews from:', reviewsUrl);
+      
+      // Request reviews from background script
+      const response = await new Promise((resolve) => {
+        chrome.runtime.sendMessage({
+          action: "scrapeReviews",
+          url: reviewsUrl
+        }, resolve);
       });
+
+      console.log('Response from background:', response);
+
+      if (response && response.reviews && response.reviews.length > 0) {
+        this.reviews = response.reviews;
+        console.log('Reviews collected:', this.reviews.length);
+
+        if (statusElement) {
+          statusElement.textContent = `Analyzing ${this.reviews.length} reviews...`;
+        }
+
+        // Show the credibility score section
+        const credibilityScoreElement = document.getElementById('credibility-score');
+        if (credibilityScoreElement) {
+          credibilityScoreElement.style.display = 'block';
+        }
+
+        // Perform the analysis
+        await this.analyzeReviews();
+        
+        if (statusElement) {
+          statusElement.textContent = `Analyzed ${this.reviews.length} reviews`;
+        }
+      } else {
+        console.error('No reviews in response:', response);
+        throw new Error(response?.error || 'No reviews were returned');
+      }
+
+    } catch (error) {
+      console.error('Error in scrapeReviews:', error);
+      const statusElement = document.querySelector('.ra-status');
+      if (statusElement) {
+        statusElement.textContent = 'Error analyzing reviews';
+      }
+      
+      const credibilityScoreElement = document.getElementById('credibility-score');
+      if (credibilityScoreElement) {
+        credibilityScoreElement.style.display = 'none';
+      }
+
+      // Clear any partial results
+      this.reviews = [];
+      this.analysisResult = null;
+      this.aiAnalysis = null;
+    }
+  }
+
+  updateAnalysisPanel() {
+    // Update credibility score
+    const credibilityScoreElement = document.getElementById('credibility-score');
+    if (credibilityScoreElement && this.analysisResult) {
+      credibilityScoreElement.textContent = this.analysisResult.credibilityScore || '';
     }
 
-    if (text && rating) {
-      this.reviews.push({
-        rating,
-        text,
-        date,
-        reviewer,
-        verified,
-        element: review
-      });
+    // Update review count
+    const reviewCountElement = document.querySelector('.ra-status');
+    if (reviewCountElement) {
+      reviewCountElement.textContent = `Analyzed ${this.reviews.length} reviews`;
     }
-  });
 
-  console.log(`Scraped ${this.reviews.length} reviews`);
-  
-  // Debug: Log verification statistics
-  const verifiedCount = this.reviews.filter(r => r.verified).length;
-  console.log(`Verified purchases: ${verifiedCount}/${this.reviews.length} (${((verifiedCount/this.reviews.length)*100).toFixed(1)}%)`);
-}
+    // Update other analysis details
+    const analysisDetailsElement = document.getElementById('analysis-details');
+    if (analysisDetailsElement && this.reviews.length > 0) {
+      analysisDetailsElement.innerHTML = this.getAnalysisDetailsHTML();
+    } else if (analysisDetailsElement) {
+      analysisDetailsElement.innerHTML = '<div class="ra-no-reviews">No reviews found to analyze.</div>';
+    }
+  }
 
   analyzeReviews() {
   const detailsElement = document.getElementById('analysis-details');

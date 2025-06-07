@@ -1,8 +1,10 @@
 // Background service worker for Amazon Review Analyzer with Gemini API integration
 
-// Configuration
-let GEMINI_API_KEY = null; // Will be loaded from storage
+let GEMINI_API_KEY = null;
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+const MAX_REVIEWS = 50; // Maximum number of reviews to collect
+const MAX_PAGES = 5; // Max pages to review
+const REVIEWS_PER_PAGE = 10;
 
 // Load API key from storage on startup
 chrome.storage.sync.get(['geminiApiKey'], function(result) {
@@ -204,6 +206,99 @@ async function testGeminiApiKey(apiKey) {
   }
 }
 
+// Function to fetch reviews from the "See all reviews" page
+async function fetchAllReviews(productUrl) {
+  try {
+    // Extract the product ID from the URL
+    const productId = productUrl.match(/\/dp\/([A-Z0-9]+)/)?.[1];
+    if (!productId) return { reviews: [] };
+
+    // Construct the "All Reviews" URL
+    const allReviewsUrl = `${productUrl.split('/dp/')[0]}/product-reviews/${productId}`;
+    
+    // Create a new tab in the background to fetch reviews
+    const tab = await chrome.tabs.create({ 
+      url: allReviewsUrl, 
+      active: false 
+    });
+
+    // Wait for the page to load
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    // Function to scrape reviews from a single page
+    async function scrapeReviewsFromPage(tabId) {
+      const results = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: () => {
+          const reviews = [];
+          const reviewElements = document.querySelectorAll('[data-hook="review"]');
+          
+          reviewElements.forEach(review => {
+            try {
+              const ratingElement = review.querySelector('[data-hook="review-star-rating"]');
+              const textElement = review.querySelector('[data-hook="review-body"]');
+              const reviewerElement = review.querySelector('.a-profile-name');
+              const verifiedElement = review.querySelector('[data-hook="avp-badge"]');
+              const dateElement = review.querySelector('[data-hook="review-date"]');
+
+              if (ratingElement && textElement) {
+                const rating = parseInt(ratingElement.textContent.split('.')[0]);
+                const text = textElement.textContent.trim();
+                const reviewer = reviewerElement ? reviewerElement.textContent.trim() : 'Anonymous';
+                const verified = !!verifiedElement;
+                const date = dateElement ? dateElement.textContent.trim() : null;
+
+                reviews.push({ rating, text, reviewer, verified, date });
+              }
+            } catch (error) {
+              console.error('Error processing review:', error);
+            }
+          });
+          return reviews;
+        }
+      });
+
+      return results[0].result;
+    }
+
+    let allReviews = [];
+    let pageCount = 0;
+
+    // Collect reviews until we have 30 or run out of pages
+    while (allReviews.length < 30 && pageCount < 5) {
+      const pageReviews = await scrapeReviewsFromPage(tab.id);
+      allReviews = [...allReviews, ...pageReviews];
+      
+      // Check if we need more reviews
+      if (allReviews.length < 30) {
+        // Click next page button
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: () => {
+            const nextButton = document.querySelector('.a-pagination .a-last a');
+            if (nextButton) nextButton.click();
+            return !!nextButton;
+          }
+        });
+
+        // Wait for next page to load
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        pageCount++;
+      }
+    }
+
+    // Close the background tab
+    await chrome.tabs.remove(tab.id);
+
+    // Return only up to 30 reviews
+    return { reviews: allReviews.slice(0, 30) };
+
+  } catch (error) {
+    console.error('Error in fetchAllReviews:', error);
+    return { reviews: [] };
+  }
+}
+
 // Main message listener
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'updateBadge') {
@@ -243,5 +338,95 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       .then(result => sendResponse({ success: result }))
       .catch(error => sendResponse({ success: false, error: error.message }));
     return true; // async response
+  } else if (request.action === "scrapeReviews") {
+    (async () => {
+      try {
+        const url = request.url;
+        console.log('Fetching reviews from:', url);
+        
+        const tab = await chrome.tabs.create({ url, active: false });
+        
+        // Wait for the page to load
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        let allReviews = [];
+        let pageCount = 0;
+        
+        while (allReviews.length < MAX_REVIEWS && pageCount < MAX_PAGES) {
+          // Scrape reviews from current page
+          const results = await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: () => {
+              const reviews = [];
+              const reviewElements = document.querySelectorAll('[data-hook="review"]');
+              
+              reviewElements.forEach(review => {
+                try {
+                  const ratingElement = review.querySelector('[data-hook="review-star-rating"]');
+                  const textElement = review.querySelector('[data-hook="review-body"]');
+                  const reviewerElement = review.querySelector('.a-profile-name');
+                  const verifiedElement = review.querySelector('[data-hook="avp-badge"]');
+                  const dateElement = review.querySelector('[data-hook="review-date"]');
+                  
+                  if (ratingElement && textElement) {
+                    const rating = parseInt(ratingElement.textContent.split('.')[0]);
+                    const text = textElement.textContent.trim();
+                    const reviewer = reviewerElement ? reviewerElement.textContent.trim() : 'Anonymous';
+                    const verified = !!verifiedElement;
+                    const date = dateElement ? dateElement.textContent.trim() : null;
+                    
+                    reviews.push({ rating, text, reviewer, verified, date });
+                  }
+                } catch (err) {
+                  console.error('Error processing single review:', err);
+                }
+              });
+              
+              return {
+                reviews,
+                hasNextPage: !!document.querySelector('.a-pagination .a-last:not(.a-disabled) a')
+              };
+            }
+          });
+          
+          if (results && results[0] && results[0].result) {
+            const { reviews, hasNextPage } = results[0].result;
+            allReviews = [...allReviews, ...reviews];
+            console.log(`Collected ${allReviews.length} reviews so far`);
+            
+            if (!hasNextPage || allReviews.length >= MAX_REVIEWS) {
+              break;
+            }
+            
+            // Go to next page
+            await chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              func: () => {
+                const nextButton = document.querySelector('.a-pagination .a-last:not(.a-disabled) a');
+                if (nextButton) nextButton.click();
+              }
+            });
+            
+            // Wait for next page to load
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            pageCount++;
+          } else {
+            break;
+          }
+        }
+        
+        // Close the background tab
+        await chrome.tabs.remove(tab.id);
+        
+        // Return reviews up to the maximum
+        const reviews = allReviews.slice(0, MAX_REVIEWS);
+        console.log(`Returning ${reviews.length} reviews`);
+        sendResponse({ reviews });
+      } catch (error) {
+        console.error('Error in review collection:', error);
+        sendResponse({ reviews: [], error: error.message });
+      }
+    })();
+    return true; // Keep the message channel open
   }
 });

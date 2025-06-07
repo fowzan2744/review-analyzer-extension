@@ -3,19 +3,20 @@
   "name": "Amazon Review Analyzer with AI",
   "version": "2.0.0",
   "permissions": [
-  "storage",
-  "activeTab",
-  "contextMenus"
-],
-"host_permissions": [
-  "https://generativelanguage.googleapis.com/*",
-  "*://*.amazon.com/*",
-  "*://*.amazon.co.uk/*",
-  "*://*.amazon.ca/*",
-  "*://*.amazon.de/*",
-  "*://*.amazon.in/*"
-
-],
+    "storage",
+    "activeTab",
+    "contextMenus",
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://generativelanguage.googleapis.com/*",
+    "*://*.amazon.com/*",
+    "*://*.amazon.co.uk/*",
+    "*://*.amazon.ca/*",
+    "*://*.amazon.de/*",
+    "*://*.amazon.in/*"
+  ],
 
   "background": {
     "service_worker": "background.js"
