@@ -72,7 +72,7 @@ Score ranges:
 
 1. **Clone the Repository**
 ```bash
-git clone https://github.com/yourusername/review-analyzer-extension.git
+git clone https://github.com/fowzan2744/review-analyzer-extension.git
 cd review-analyzer-extension
 ```
 
