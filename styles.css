@@ -125,9 +125,13 @@
 
 .ra-loading {
   text-align: center;
-  padding: 20px;
-  font-size: 1.1em;
+  padding: 10px;
+  font-size: 1em;
   opacity: 0.8;
+  font-style: italic;
+  color: #ff6b6b;
+  font-weight: bold;
+  animation: scoreAnimation 1s ease-in-out;
 }
 
 .ra-no-reviews {

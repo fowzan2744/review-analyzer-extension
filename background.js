@@ -65,7 +65,7 @@ async function analyzeReviewsWithGemini(reviewsData) {
     5. Reliability score (1-100)
 
     Reviews data:
-    ${JSON.stringify(reviewTexts.slice(0, 20), null, 2)}
+    ${JSON.stringify(reviewTexts.slice(0, 100), null, 2)}
 
     Product statistics:
     - Total reviews: ${reviewsData.totalReviews}
@@ -74,12 +74,12 @@ async function analyzeReviewsWithGemini(reviewsData) {
 
     Please provide a structured analysis in JSON format with the following structure:
     {
-      "authenticity_score": number (1-100),
+      "authenticity_score": number (1-100) based on authenticity,
       "sentiment_analysis": "positive/negative/mixed",
       "key_themes": ["theme1", "theme2", "theme3"],
       "quality_insights": "brief description",
       "fake_indicators": ["indicator1", "indicator2"],
-      "recommendation": "brief recommendation",
+      "recommendation": "brief recommendation along with a statement whether one should buy or not",
       "confidence_level": "high/medium/low"
     }
   `;

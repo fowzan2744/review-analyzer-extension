@@ -8,9 +8,9 @@ class AmazonReviewAnalyzer {
     this.init();
   }
 
-  init() {
+  async init() {
     this.createAnalysisPanel();
-    this.scrapeReviews();
+    await this.scrapeReviews();
     this.analyzeReviews();
   }
 
@@ -21,7 +21,7 @@ class AmazonReviewAnalyzer {
     panel.innerHTML = `
       <div class="ra-header">
         <h3>🔍 Review Analysis</h3>
-        <div class="ra-status">Analyzing...</div>
+        <div class="ra-status">REVIEWING THE REVIEWS...</div>
       </div>
       <div class="ra-content">
         <div class="ra-score-container">
@@ -38,7 +38,7 @@ class AmazonReviewAnalyzer {
           </div>
         </div>
         <div class="ra-details" id="analysis-details">
-          <div class="ra-loading">🔄 Analyzing reviews...</div>
+          <div class="ra-loading">🔄 Collecting reviews...</div>
         </div>
         <div class="ra-controls">
           <button id="refresh-analysis" class="ra-button">🔄 Refresh Analysis</button>
@@ -64,7 +64,7 @@ class AmazonReviewAnalyzer {
     const styles = `
       <style>
         #review-analyzer-panel {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          background: linear-gradient(135deg,rgb(22, 22, 22) 0%,rgb(81, 80, 81) 100%);
           border-radius: 12px;
           padding: 20px;
           margin: 20px 0;
@@ -90,6 +90,13 @@ class AmazonReviewAnalyzer {
           padding: 5px 12px;
           border-radius: 20px;
           font-size: 12px;
+          animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+          0% { opacity: 1; }
+          50% { opacity: 0.7; }
+          100% { opacity: 1; }
         }
 
         .ra-score-container {
@@ -219,6 +226,9 @@ class AmazonReviewAnalyzer {
           text-align: center;
           opacity: 0.8;
           font-style: italic;
+          font-size: 18px;
+          animation: pulse 1s infinite;
+          font-weight: bold;
         }
 
         .ra-no-reviews {
@@ -257,18 +267,30 @@ class AmazonReviewAnalyzer {
     });
   }
 
-  refreshAnalysis() {
+  async refreshAnalysis() {
     // Clear existing analysis
     this.reviews = [];
     this.analysisResult = null;
     this.aiAnalysis = null;
+    
+    // Reset UI to loading state
+    const statusElement = document.querySelector('.ra-status');
+    const detailsElement = document.getElementById('analysis-details');
+    const credibilityScoreElement = document.getElementById('credibility-score');
+    
+    if (statusElement) statusElement.textContent = 'REVIEWING THE REVIEWS...';
+    if (detailsElement) detailsElement.innerHTML = '<div class="ra-loading">🔄 Collecting reviews...</div>';
+    if (credibilityScoreElement) {
+      credibilityScoreElement.textContent = '--';
+      credibilityScoreElement.className = 'ra-score';
+    }
     
     // Hide AI section
     const aiSection = document.getElementById('ai-analysis-section');
     if (aiSection) aiSection.style.display = 'none';
     
     // Re-run analysis
-    this.scrapeReviews();
+    await this.scrapeReviews();
     this.analyzeReviews();
   }
 
@@ -408,8 +430,14 @@ class AmazonReviewAnalyzer {
   async scrapeReviews() {
     try {
       const statusElement = document.querySelector('.ra-status');
+      const detailsElement = document.getElementById('analysis-details');
+      
       if (statusElement) {
-        statusElement.textContent = 'Collecting reviews (this may take a moment)...';
+        statusElement.textContent = 'REVIEWING THE REVIEWS...';
+      }
+      
+      if (detailsElement) {
+        detailsElement.innerHTML = '<div class="ra-loading">🔄 Collecting reviews...</div>';
       }
 
       // Get the reviews URL
@@ -428,6 +456,15 @@ class AmazonReviewAnalyzer {
 
       console.log('Fetching reviews from:', reviewsUrl);
       
+      // Update status to show collection progress
+      if (statusElement) {
+        statusElement.textContent = 'COLLECTING REVIEWS...';
+      }
+      
+      if (detailsElement) {
+        detailsElement.innerHTML = '<div class="ra-loading">🔄 Analyzing the reviews...</div>';
+      }
+      
       // Request reviews from background script
       const response = await new Promise((resolve) => {
         chrome.runtime.sendMessage({
@@ -443,21 +480,13 @@ class AmazonReviewAnalyzer {
         console.log('Reviews collected:', this.reviews.length);
 
         if (statusElement) {
-          statusElement.textContent = `Analyzing ${this.reviews.length} reviews...`;
+          statusElement.textContent = `ANALYZING ${this.reviews.length} REVIEWS...`;
         }
-
-        // Show the credibility score section
-        const credibilityScoreElement = document.getElementById('credibility-score');
-        if (credibilityScoreElement) {
-          credibilityScoreElement.style.display = 'block';
-        }
-
-        // Perform the analysis
-        await this.analyzeReviews();
         
-        if (statusElement) {
-          statusElement.textContent = `Analyzed ${this.reviews.length} reviews`;
+        if (detailsElement) {
+          detailsElement.innerHTML = `<div class="ra-loading">🔄 Processing ${this.reviews.length} reviews...</div>`;
         }
+
       } else {
         console.error('No reviews in response:', response);
         throw new Error(response?.error || 'No reviews were returned');
@@ -466,13 +495,20 @@ class AmazonReviewAnalyzer {
     } catch (error) {
       console.error('Error in scrapeReviews:', error);
       const statusElement = document.querySelector('.ra-status');
+      const detailsElement = document.getElementById('analysis-details');
+      const credibilityScoreElement = document.getElementById('credibility-score');
+      
       if (statusElement) {
-        statusElement.textContent = 'Error analyzing reviews';
+        statusElement.textContent = 'ERROR COLLECTING REVIEWS';
       }
       
-      const credibilityScoreElement = document.getElementById('credibility-score');
+      if (detailsElement) {
+        detailsElement.innerHTML = '<div class="ra-no-reviews">Unable to collect reviews. Please try refreshing.</div>';
+      }
+      
       if (credibilityScoreElement) {
-        credibilityScoreElement.style.display = 'none';
+        credibilityScoreElement.textContent = '--';
+        credibilityScoreElement.className = 'ra-score';
       }
 
       // Clear any partial results
@@ -482,88 +518,74 @@ class AmazonReviewAnalyzer {
     }
   }
 
-  updateAnalysisPanel() {
-    // Update credibility score
-    const credibilityScoreElement = document.getElementById('credibility-score');
-    if (credibilityScoreElement && this.analysisResult) {
-      credibilityScoreElement.textContent = this.analysisResult.credibilityScore || '';
-    }
-
-    // Update review count
-    const reviewCountElement = document.querySelector('.ra-status');
-    if (reviewCountElement) {
-      reviewCountElement.textContent = `Analyzed ${this.reviews.length} reviews`;
-    }
-
-    // Update other analysis details
-    const analysisDetailsElement = document.getElementById('analysis-details');
-    if (analysisDetailsElement && this.reviews.length > 0) {
-      analysisDetailsElement.innerHTML = this.getAnalysisDetailsHTML();
-    } else if (analysisDetailsElement) {
-      analysisDetailsElement.innerHTML = '<div class="ra-no-reviews">No reviews found to analyze.</div>';
-    }
-  }
-
   analyzeReviews() {
-  const detailsElement = document.getElementById('analysis-details');
-  const statusElement = document.querySelector('.ra-status');
-  const credibilityScoreElement = document.getElementById('credibility-score');
+    const detailsElement = document.getElementById('analysis-details');
+    const statusElement = document.querySelector('.ra-status');
+    const credibilityScoreElement = document.getElementById('credibility-score');
+    
+    if (this.reviews.length === 0) {
+      detailsElement.innerHTML = `<div class="ra-no-reviews">No reviews found to analyze.</div>`;
+      statusElement.textContent = 'NO REVIEWS FOUND';
+      credibilityScoreElement.textContent = '--';
+      credibilityScoreElement.className = 'ra-score';
+      return;
+    }
 
-  if (this.reviews.length === 0) {
-    detailsElement.innerHTML = `<div class="ra-no-reviews">No reviews found to analyze.</div>`;
-    statusElement.textContent = 'No Reviews';
-    credibilityScoreElement.textContent = '--';
+    statusElement.textContent = 'CRUNCHING THE NUMBERS...';
+
+    // Example basic analysis:
+    // Calculate average rating
+    const totalRating = this.reviews.reduce((sum, r) => sum + r.rating, 0);
+    const avgRating = totalRating / this.reviews.length;
+
+    // Calculate verified purchase percentage
+    const verifiedCount = this.reviews.filter(r => r.verified).length;
+    const verifiedPercentage = (verifiedCount / this.reviews.length) * 100;
+
+    // Basic credibility score could be weighted by avgRating and verified percentage
+    let credibilityScore = Math.round((avgRating / 5) * 70 + (verifiedPercentage / 100) * 30);
+
+    // Clamp score between 0 and 100
+    credibilityScore = Math.min(100, Math.max(0, credibilityScore));
+
+    // Update score UI with color coding
+    credibilityScoreElement.textContent = credibilityScore;
     credibilityScoreElement.className = 'ra-score';
-    return;
-  }
+    if (credibilityScore >= 80) credibilityScoreElement.classList.add('ra-score-good');
+    else if (credibilityScore >= 50) credibilityScoreElement.classList.add('ra-score-medium');
+    else credibilityScoreElement.classList.add('ra-score-bad');
 
-  statusElement.textContent = 'Analyzing reviews...';
-
-  // Example basic analysis:
-  // Calculate average rating
-  const totalRating = this.reviews.reduce((sum, r) => sum + r.rating, 0);
-  const avgRating = totalRating / this.reviews.length;
-
-  // Calculate verified purchase percentage
-  const verifiedCount = this.reviews.filter(r => r.verified).length;
-  const verifiedPercentage = (verifiedCount / this.reviews.length) * 100;
-
-  // Basic credibility score could be weighted by avgRating and verified percentage
-  let credibilityScore = Math.round((avgRating / 5) * 70 + (verifiedPercentage / 100) * 30);
-
-  // Clamp score between 0 and 100
-  credibilityScore = Math.min(100, Math.max(0, credibilityScore));
-
-  // Update score UI with color coding
-  credibilityScoreElement.textContent = credibilityScore;
-  credibilityScoreElement.className = 'ra-score';
-  if (credibilityScore >= 80) credibilityScoreElement.classList.add('ra-score-good');
-  else if (credibilityScore >= 50) credibilityScoreElement.classList.add('ra-score-medium');
-  else credibilityScoreElement.classList.add('ra-score-bad');
-
-  // Show some stats in details panel
-  detailsElement.innerHTML = `
-    <div class="ra-stat"><strong>Total Reviews:</strong> ${this.reviews.length}</div>
-    <div class="ra-stat"><strong>Average Rating:</strong> ${avgRating.toFixed(2)} / 5</div>
-    <div class="ra-stat"><strong>Verified Purchases:</strong> ${verifiedPercentage.toFixed(1)}%</div>
-  `;
-
-  // Optionally, add warnings for suspicious patterns, e.g., many 5-star reviews but low verified
-  if (verifiedPercentage < 30 && avgRating > 4.5) {
-    detailsElement.innerHTML += `
-      <div class="ra-warning ra-review-warning">
-        ⚠️ High average rating but low verified purchase percentage may indicate suspicious reviews.
-      </div>
+    // Show some stats in details panel
+    detailsElement.innerHTML = `
+      <div class="ra-stat"><strong>Total Reviews:</strong> ${this.reviews.length}</div>
+      <div class="ra-stat"><strong>Average Rating:</strong> ${avgRating.toFixed(2)} / 5</div>
+      <div class="ra-stat"><strong>Verified Purchases:</strong> ${verifiedPercentage.toFixed(1)}%</div>
     `;
-  }
 
-  statusElement.textContent = 'Analysis complete';
-  this.analysisResult = {
-    credibilityScore,
-    avgRating,
-    verifiedPercentage,
-  };
-}
+    // Optionally, add warnings for suspicious patterns, e.g., many 5-star reviews but low verified
+    if (verifiedPercentage < 30 && avgRating > 4.5) {
+      detailsElement.innerHTML += `
+        <div class="ra-warning ra-review-warning">
+          ⚠️ High average rating but low verified purchase percentage may indicate suspicious reviews.
+        </div>
+      `;
+    }
+
+    // Update final status based on credibility score
+    if (credibilityScore >= 80) {
+      statusElement.textContent = '✅ HIGHLY CREDIBLE';
+    } else if (credibilityScore >= 50) {
+      statusElement.textContent = '⚠️ MODERATELY CREDIBLE';
+    } else {
+      statusElement.textContent = '❌ LOW CREDIBILITY';
+    }
+
+    this.analysisResult = {
+      credibilityScore,
+      avgRating,
+      verifiedPercentage,
+    };
+  }
 
   calculateCredibilityScore() {
     const avgRating = this.reviews.reduce((sum, r) => sum + r.rating, 0) / this.reviews.length;
@@ -768,9 +790,9 @@ class AmazonReviewAnalyzer {
     else scoreElement.classList.add('ra-score-bad');
 
     // Update status
-    if (score >= 80) statusElement.textContent = '✅ Highly Credible';
-    else if (score >= 60) statusElement.textContent = '⚠️ Moderately Credible';
-    else statusElement.textContent = '❌ Low Credibility';
+    if (score >= 80) statusElement.textContent = '✅ HIGHLY CREDIBLE';
+    else if (score >= 60) statusElement.textContent = '⚠️ MODERATELY CREDIBLE';
+    else statusElement.textContent = '❌ LOW CREDIBILITY';
 
     // Display detailed analysis
     let detailsHTML = `
@@ -809,6 +831,7 @@ class AmazonReviewAnalyzer {
               review.element.style.backgroundColor = '#fff5f5';
               
               const warning = document.createElement('div');
+              warning.className
               warning.className = 'ra-review-warning';
               warning.textContent = '⚠️ Similar to other reviews';
               review.element.prepend(warning);
